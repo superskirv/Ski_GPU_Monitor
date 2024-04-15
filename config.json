@@ -1,0 +1,18 @@
+{
+  "sudo_password": "password",
+  "gpu": {
+    "0":{
+      "power_initial": 200,
+      "power_max": 200,
+      "power_min": 100
+    },
+    "1":{
+      "power_initial": 200,
+      "power_max": 200,
+      "power_min": 100
+    }
+  },
+  "refresh_time": 3,
+  "min_wait": 1,
+  "monitor": 0
+}
