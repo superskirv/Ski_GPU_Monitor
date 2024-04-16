@@ -1,6 +1,6 @@
 import subprocess, json, os, time
 
-Ski_GPU_Monitor_version = "1.0.1"
+Ski_GPU_Monitor_version = "1.0.2"
 
 script_directory = os.path.dirname(os.path.abspath(__file__))
 config_file_path = os.path.join(script_directory, "config.json")
@@ -96,7 +96,7 @@ class Ski_GPU_Monitor:
                 }
             return gpu_ids
         except subprocess.CalledProcessError:
-            print("Error(100): nvidia-smi command failed.")
+            print("Error(0100): nvidia-smi command failed.")
             return []
     def get_gpu_max_power(self, gpu_id):
         try:
@@ -104,7 +104,7 @@ class Ski_GPU_Monitor:
             max_power_gpu = int(result.stdout.strip())
             return max_power_gpu
         except subprocess.CalledProcessError as e:
-            print(f"Error(102): running nvidia-smi: {e}")
+            print(f"Error(0101): running nvidia-smi: {e}")
             return None
     def get_gpu_min_power(self, gpu_id):
         try:
@@ -112,11 +112,12 @@ class Ski_GPU_Monitor:
             max_power_gpu = int(result.stdout.strip())
             return max_power_gpu
         except subprocess.CalledProcessError as e:
-            print(f"Error(102): running nvidia-smi: {e}")
+            print(f"Error(0102): running nvidia-smi: {e}")
             return None
 
-    def set_gpu_power(self, gpu_id, limit):
-        sudo_password = self.config["sudo_password"]
+    def set_gpu_power(self, gpu_id, limit, sudo_password=False):
+        if not sudo_password:
+            sudo_password = self.config["sudo_password"]
 
         if limit > self.config['gpu'][str(gpu_id)]['power_max']:
             limit = self.config['gpu'][str(gpu_id)]['power_max']
@@ -124,11 +125,11 @@ class Ski_GPU_Monitor:
             limit = self.config['gpu'][str(gpu_id)]['power_min'] 
 
         try:
-            command = f"echo {self.config['sudo_password']} | sudo -S nvidia-smi -i {gpu_id} -pl {limit}"
+            command = f"echo {sudo_password} | sudo -S nvidia-smi -i {gpu_id} -pl {limit}"
             subprocess.run(command, shell=True, check=True)
             print(f"GPU{gpu_id} power limit set to {limit} Watts.")
         except subprocess.CalledProcessError as e:
-            print(f"Error(200) setting GPU power limit: {e}")
+            print(f"Error(0200) setting GPU power limit: {e}")
     def update_gpu_stats(self):
         for gpu_id in self.total_list:
             if time.time() - self.last_run[gpu_id] > self.min_wait:
@@ -152,32 +153,12 @@ class Ski_GPU_Monitor:
                 self.gpu[keyname] = gpu_data
                 return True
             except subprocess.CalledProcessError as e:
-                print(f"Error(000): running nvidia-smi: {e}")
+                print(f"Error(0000): running nvidia-smi: {e}")
                 return False
         else:
-            #print(f"Error(101): running nvidia-smi: Running too often.")
+            #print(f"Error(0101): running nvidia-smi: Running too often.")
             return False
     def load_config(self):
         with open(config_file_path, "r") as f:
             config = json.load(f)
             return config
-    def create_config(self):
-        gpu_data = {}
-        total_gpus = range(self.gpu_monitor.total_gpus)
-        for gpu_id in total_gpus:
-            max_pwr = self.gpu_monitor.get_gpu_max_power(gpu_id)
-            min_pwr = self.gpu_monitor.get_gpu_min_power(gpu_id),
-            gpu_data[str(gpu_id)] = {
-                'power_max': max_pwr,
-                'power_min': min_pwr,
-                'power_initial': int((min_pwr - min_pwr)/2 + min_pwr)
-            }
-
-        config = {
-          "sudo_password": "unknown",
-          "gpu": gpu_data,
-          "refresh_time": 3,
-          "min_wait": 1,
-          "monitor": False
-        }
-        return config

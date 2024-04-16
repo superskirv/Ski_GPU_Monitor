@@ -1,5 +1,5 @@
 {
-  "sudo_password": "password",
+  "sudo_password": "",
   "gpu": {
     "0":{
       "power_initial": 200,
@@ -14,5 +14,6 @@
   },
   "refresh_time": 3,
   "min_wait": 1,
-  "monitor": 0
+  "preferred_monitor": 0,
+  "position": 1
 }

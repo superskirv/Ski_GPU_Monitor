@@ -4,7 +4,7 @@ from tkinter import ttk, simpledialog
 from screeninfo import get_monitors
 from ski_gpu_monitor import Ski_GPU_Monitor
 
-SKI_GPU_GUI_version = "1.0.1"
+SKI_GPU_GUI_version = "1.0.2"
 
 script_directory = os.path.dirname(os.path.abspath(__file__))
 config_file_path = os.path.join(script_directory, "config.json")
@@ -105,36 +105,48 @@ class SKI_GPU_GUI:
 
         new_limit = simpledialog.askstring("Change Power Limit", "Enter the new maximum power limit:")
         if new_limit is not None and validate_input(new_limit):
-            self.gpu_monitor.set_gpu_power(gpu_id, int(new_limit))
+            if not self.config['sudo_password'] or self.config['sudo_password'] == "":
+                sudo_password = simpledialog.askstring("Enter Sudo Password", "Password will not be remembered, set config to remember:")
+            self.gpu_monitor.set_gpu_power(gpu_id, int(new_limit), sudo_password)
         else:
             print("Invalid input or input cancelled.")
             pass
     def toggle_position(self):
-        monitor0 = False
+        monitor = self.get_monitor()
+        if monitor:
+            self.set_position(monitor)
+    def get_monitor(self, monitor_id=-1):
+        monitor = False
         try:
             monitors = get_monitors()
-            if self.config['monitor'] == False:
+            if not self.config['preferred_monitor']:
                 if len(monitors) > 1:
                     for mon in monitors:
-                        if mon.is_primary == False:
-                            monitor0 = mon
+                        if not mon.is_primary:
+                            monitor = mon
                 else:
-                    monitor0 = monitors[0]
+                    monitor = monitors[0]
             else:
-                monitor0 = monitors[self.config['monitor']]
+                if monitor_id > -1 and monitor_id < len(monitors):
+                    monitor = monitors[monitor_id]
+                else:
+                    monitor = monitors[self.config['preferred_monitor']]
+
         except ValueError:
             return False
-        monitor0_width, monitor0_height = monitor0.width, monitor0.height
+        return monitor
+    def set_position(self, monitor):
+        monitor_width, monitor_height = monitor.width, monitor.height
 
         # Get screen dimensions
-        screen0_width, screen0_height, screen0_x, screen0_y = monitor0.x, monitor0.y, monitor0.width, monitor0.height
+        screen_width, screen_height, screen_x, screen_y = monitor.x, monitor.y, monitor.width, monitor.height
 
         # Define positions for the window
         positions = {
             "0_top_left": {"x_pos": 0, "y_pos": 0},
-            "0_top_right": {"x_pos": screen0_x + screen0_width - self.root.winfo_width(), "y_pos": 0},
-            "0_bottom_left": {"x_pos": 0, "y_pos": screen0_y + screen0_height - self.root.winfo_height()},
-            "0_bottom_right": {"x_pos": screen0_x + screen0_width - self.root.winfo_width(), "y_pos": screen0_y + screen0_height - self.root.winfo_height()},
+            "0_top_right": {"x_pos": screen_x + screen_width - self.root.winfo_width(), "y_pos": 0},
+            "0_bottom_left": {"x_pos": 0, "y_pos": screen_y + screen_height - self.root.winfo_height()},
+            "0_bottom_right": {"x_pos": screen_x + screen_width - self.root.winfo_width(), "y_pos": screen_y + screen_height - self.root.winfo_height()},
         }
 
         # Determine the next position
@@ -173,7 +185,8 @@ class SKI_GPU_GUI:
           "gpu": gpu_data,
           "refresh_time": 3,
           "min_wait": 1,
-          "monitor": False
+          "preferred_monitor": False,
+          "position": 0
         }
         return config
 def main():
