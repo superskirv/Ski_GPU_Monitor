@@ -1,6 +1,6 @@
 import subprocess, json, os, time
 
-Ski_GPU_Monitor_version = "1.0.2"
+Ski_GPU_Monitor_version = "1.0.3"
 
 script_directory = os.path.dirname(os.path.abspath(__file__))
 config_file_path = os.path.join(script_directory, "config.json")
@@ -26,7 +26,8 @@ class Ski_GPU_Monitor:
         self.total_list = self.get_number_gpu()
         for gpu_id in self.total_list:
             print('gpu_id',gpu_id)
-            self.set_gpu_power(gpu_id, self.config['gpu'][str(gpu_id)]['power_initial'])
+            if len(list(self.config['gpu'].keys())) > 0:
+                self.set_gpu_power(gpu_id, self.config['gpu'][str(gpu_id)]['power_initial'])
             self.run_nvidiasmi(gpu_id)
     def get_total_vram_max(self):
         self.update_gpu_stats()
@@ -84,16 +85,6 @@ class Ski_GPU_Monitor:
             result = subprocess.run(["nvidia-smi", "--query-gpu=index", "--format=csv,noheader"], capture_output=True, text=True)
             gpu_ids = [int(id.strip()) for id in result.stdout.strip().split('\n')]
             self.total_gpus = len(gpu_ids)
-            self.gpu = {}
-            for gpu_id in gpu_ids:
-                self.gpu[gpu_id] = {
-                    'percent_usage': -1,
-                    'temperature': -1,
-                    'power_usage': -1,
-                    'max_power': -1,
-                    'vram_used': -1,
-                    'vram_max': -1
-                }
             return gpu_ids
         except subprocess.CalledProcessError:
             print("Error(0100): nvidia-smi command failed.")
@@ -101,7 +92,7 @@ class Ski_GPU_Monitor:
     def get_gpu_max_power(self, gpu_id):
         try:
             result = subprocess.run(["nvidia-smi", f"--id={gpu_id}", "--query-gpu=power.max_limit", "--format=csv,noheader,nounits"], capture_output=True, text=True)
-            max_power_gpu = int(result.stdout.strip())
+            max_power_gpu = int(float(result.stdout.strip()))
             return max_power_gpu
         except subprocess.CalledProcessError as e:
             print(f"Error(0101): running nvidia-smi: {e}")
@@ -109,7 +100,7 @@ class Ski_GPU_Monitor:
     def get_gpu_min_power(self, gpu_id):
         try:
             result = subprocess.run(["nvidia-smi", f"--id={gpu_id}", "--query-gpu=power.min_limit", "--format=csv,noheader,nounits"], capture_output=True, text=True)
-            max_power_gpu = int(result.stdout.strip())
+            max_power_gpu = int(float(result.stdout.strip()))
             return max_power_gpu
         except subprocess.CalledProcessError as e:
             print(f"Error(0102): running nvidia-smi: {e}")
@@ -159,6 +150,45 @@ class Ski_GPU_Monitor:
             #print(f"Error(0101): running nvidia-smi: Running too often.")
             return False
     def load_config(self):
-        with open(config_file_path, "r") as f:
-            config = json.load(f)
-            return config
+        if not os.path.isfile(config_file_path):
+            config = self.build_config()
+        else:
+            with open(config_file_path, "r", encoding='utf-8') as outfile:
+                config = json.load(outfile)
+        return config
+    def build_config(self):
+        config = {
+            "Config_Note": [
+                "This note is for information purposes only and can be deleted."
+                'sudo_password be False / "" / "actual password"',
+                "gpu data will only be automatically added if config is missing",
+                "preferred_monitor can be set to [False,0,1,etc], if False it will default to the non primary monitor",
+                "position is not working yet, but will change which corner the window starts in."
+            ],
+            "sudo_password": False,
+            "gpu": {},
+            "refresh_time": 3,
+            "min_wait": 1,
+            "preferred_monitor": False,
+            "position": 1
+        }
+        #Saves a partial config file to allow the GPU Monitor to start without errors.
+        with open(config_file_path, 'w', encoding='utf-8') as outfile:
+            json.dump(config, outfile, indent=2)
+
+        gpu_monitor = Ski_GPU_Monitor()
+        gpus = gpu_monitor.get_number_gpu()
+        gpu_data = {}
+        for gpu_id in gpus:
+            max_power = gpu_monitor.get_gpu_max_power(gpu_id)
+            min_power = gpu_monitor.get_gpu_min_power(gpu_id)
+            gpu_data[str(gpu_id)] = {
+                "power_initial": int((max_power-min_power)/2)+min_power,
+                "power_max": max_power,
+                "power_min": min_power
+            }
+        config['gpu'] = gpu_data
+        #Saves a complete config file, with some default GPU Data, USERS will need to edit to fine tune.
+        with open(config_file_path, 'w', encoding='utf-8') as outfile:
+            json.dump(config, outfile, indent=2)
+        return config

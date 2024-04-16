@@ -4,7 +4,7 @@ from tkinter import ttk, simpledialog
 from screeninfo import get_monitors
 from ski_gpu_monitor import Ski_GPU_Monitor
 
-SKI_GPU_GUI_version = "1.0.2"
+SKI_GPU_GUI_version = "1.0.3"
 
 script_directory = os.path.dirname(os.path.abspath(__file__))
 config_file_path = os.path.join(script_directory, "config.json")
@@ -165,30 +165,9 @@ class SKI_GPU_GUI:
         if not self.updating:
             self.update_info()
     def load_config(self):
-        with open(config_file_path, "r") as f:
-            config = json.load(f)
+        with open(config_file_path, "r", encoding='utf-8') as outfile:
+            config = json.load(outfile)
             return config
-    def create_config(self):
-        gpu_data = {}
-        total_gpus = range(self.gpu_monitor.total_gpus)
-        for gpu_id in total_gpus:
-            max_pwr = self.gpu_monitor.get_gpu_max_power(gpu_id)
-            min_pwr = self.gpu_monitor.get_gpu_min_power(gpu_id),
-            gpu_data[str(gpu_id)] = {
-                'power_max': max_pwr,
-                'power_min': min_pwr,
-                'power_initial': int((min_pwr - min_pwr)/2 + min_pwr)
-            }
-
-        config = {
-          "sudo_password": "unknown",
-          "gpu": gpu_data,
-          "refresh_time": 3,
-          "min_wait": 1,
-          "preferred_monitor": False,
-          "position": 0
-        }
-        return config
 def main():
     root = tk.Tk()
     app = SKI_GPU_GUI(root)
