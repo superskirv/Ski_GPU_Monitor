@@ -107,6 +107,8 @@ class SKI_GPU_GUI:
         if new_limit is not None and validate_input(new_limit):
             if not self.config['sudo_password'] or self.config['sudo_password'] == "":
                 sudo_password = simpledialog.askstring("Enter Sudo Password", "Password will not be remembered, set config to remember:")
+            else:
+                sudo_password = self.config['sudo_password']
             self.gpu_monitor.set_gpu_power(gpu_id, int(new_limit), sudo_password)
         else:
             print("Invalid input or input cancelled.")

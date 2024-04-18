@@ -2,12 +2,19 @@
 ## About
 This python app uses nvidia-smi commands to get and display single or multiple GPU information onto a compact borderless window.
 
-The purpose is to allow me to monitor my GPU's while running various ai related tasks and to allow me to set GPU watt limits on the fly.
+The purpose is to allow me to monitor my GPU's while running various ai related tasks and to allow me to set GPU watt limits on the fly. But it works well with other high demand GPU loads. I am looking into adding additional statistics to display, but before I get to that I want to get the first 2 planned features done.
+
+## Planned Features
+1) Compact Mode - Gives summary information of all GPU's, such as Total vRAM/Usage. For GPU stats that cant easily be totaled I dont have an exact plan, but something like only displaying the relavent GPU's Info, Such as GPU with the Highest Temp or Highest GPU Usage.
+2) Hide Stat(s) - A way to hide user selected statistics, probably configured by config file list, which will also dictate the order they are displayed in.
+3) Log statistics to file periodically?
+4) Minimize to Tray?
+5) Write GUI in something other than tkinter?
 
 ## Install
 ### Only tested on Linux.
 
-Download both py scripts
+Download both py scripts and place in a folder of your choice.
 
 ### Dependancies
 You will need to pip install these if you dont already have them.
