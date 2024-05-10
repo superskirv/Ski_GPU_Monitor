@@ -4,13 +4,12 @@ from tkinter import ttk, simpledialog
 from screeninfo import get_monitors
 from ski_gpu_monitor import Ski_GPU_Monitor
 
-SKI_GPU_GUI_version = "1.0.3"
-
 script_directory = os.path.dirname(os.path.abspath(__file__))
 config_file_path = os.path.join(script_directory, "config.json")
 
 class SKI_GPU_GUI:
     def __init__(self, root):
+        self.version = "1.1.0a"
         self.gpu_monitor = Ski_GPU_Monitor()
         self.gpu_monitor.update_gpu_stats()
 
@@ -20,12 +19,18 @@ class SKI_GPU_GUI:
         self.root.resizable(False, False)
         self.root.overrideredirect(True)
 
-        self.position = ""
-        self.show_all_gpu = "<" # '<' = True, '>' = False
-        self.updating = False
+        self.position = self.config['position']
+        self.show_all_gpu = "<" # display carrot only. updated else where.
+        self.updating = False # Keeps track of it auto refreshing statistics.
         self.refresh_time = self.config['refresh_time'] * 1000
 
+        self.gui_displayed = False #Lets update function know if the GUI is being changed.
+        self.display_modes = self.config['display_modes']
+        self.gpu_gui_labels = [] #keeps track of label widgets on gui that are in root frame, I got lazy about frames...
+        self.stats_labels = [] #keeps track of the displayed stat labels for updating
+
         self.create_widgets()
+        self.set_position(self.get_monitor(), self.position)
         self.update_info()
 
     def create_widgets(self):
@@ -38,6 +43,7 @@ class SKI_GPU_GUI:
         # Create a style for the checkbox
         style = ttk.Style()
         style.configure("Black.TCheckbutton", background="black", foreground="white")
+        style.configure("Black.TFrame", background="black")
 
         # Create a checkbox at position 0,0 without any text
         quit_checkbox = ttk.Checkbutton(self.buttons_frame, text="", style="Black.TCheckbutton", command=self.toggle_exit)
@@ -47,52 +53,160 @@ class SKI_GPU_GUI:
         self.expand_label = ttk.Label(self.buttons_frame, text=self.show_all_gpu, foreground="white", background="black")
         self.expand_label.grid(row=0, column=1, sticky='e')
 
+        self.create_gpu_labels()
+
+    def create_gpu_labels(self):
+        if self.config['display_mode'] == 'default':
+            self.create_default_list()
+        elif self.config['display_mode'] == 'summary':
+            self.create_summary_list()
+        elif self.config['display_mode'] == 'banner':
+            self.create_banner_list()
+        self.buttons_frame.update_idletasks()
+        self.expand_label.bind("<Button-1>", lambda event: self.toggle_expand())
+        self.gui_displayed = True
+    def create_default_list(self):
+        self.stat_names = [item['name'] for item in self.display_modes["default"].values() if item['show']]
+        self.stats_labels = [key for key, value in self.display_modes["default"].items() if value['show']]
+
+        self.GPU_frame = tk.Frame(self.root, bg='black')
+        self.GPU_frame.grid(row=0, column=1, rowspan=len(self.stats_labels)+1, sticky='nsew')
+
+        self.GPU_frame.rowconfigure(0, weight=1)
+        self.GPU_frame.columnconfigure(0, weight=1)
         # Create a label for each GPU ID
+        self.gpu_gui_labels = []
+        self.gpu_stat_labels = []
         for gpu_id in range(self.gpu_monitor.total_gpus):
-            ttk.Label(self.root, text=f"GPU {gpu_id}", foreground="white", background="black").grid(row=0, column=gpu_id+1)
+            gpu_gui_label = ttk.Label(self.GPU_frame, text=f"GPU {gpu_id}", foreground="white", background="black")
+            gpu_gui_label.grid(row=0, column=gpu_id, sticky='ew')
+            self.gpu_gui_labels.append(gpu_gui_label)
 
         # Create labels for GPU stats
-        stats_labels = ['Usage(%)', 'Temp(°C)', 'PwrUse(W)', 'MaxPwr(W)', 'vRAM Used', 'vRAM Max']
+        for row, stat_label in enumerate(self.stat_names, start=1):
+            gpu_gui_label = ttk.Label(self.root, text=stat_label, foreground="white", background="black")
+            gpu_gui_label.grid(row=row, column=0, sticky='ew')
+            gpu_stat_labels_row = []
+            self.gpu_gui_labels.append(gpu_gui_label)
+            for gpu_id in range(self.gpu_monitor.total_gpus):
+                label = ttk.Label(self.GPU_frame, text="-", foreground="white", background="black")
+                label.grid(row=row, column=gpu_id, sticky='ew')
+                self.GPU_frame.rowconfigure(row, weight=1)
+                self.GPU_frame.columnconfigure(gpu_id, weight=1)
+                gpu_stat_labels_row.append(label)
+                if stat_label == "MaxPwr(W)":
+                    label.bind("<Button-1>", lambda event, gpu_id=gpu_id: self.change_power_limit(gpu_id))
+            self.gpu_stat_labels.append(gpu_stat_labels_row)
+    def create_summary_list(self):
+        self.stat_names = [item['name'] for item in self.display_modes["summary"].values() if item['show']]
+        self.stats_labels = [key for key, value in self.display_modes["summary"].items() if value['show']]
+
+        self.GPU_frame = tk.Frame(self.root, bg='black')
+        self.GPU_frame.grid(row=0, column=1, rowspan=len(self.stats_labels)+1, sticky='nsew')
         self.gpu_stat_labels = []
-        if self.show_all_gpu == "<":
-            for row, stat_label in enumerate(stats_labels, start=1):
-                ttk.Label(self.root, text=stat_label, foreground="white", background="black").grid(row=row, column=0)
-                gpu_stat_labels_row = []
-                for gpu_id in range(self.gpu_monitor.total_gpus):
-                    label = ttk.Label(self.root, text="-", foreground="white", background="black")
-                    label.grid(row=row, column=gpu_id+1)
-                    gpu_stat_labels_row.append(label)
-                    if stat_label == "MaxPwr(W)":
-                        label.bind("<Button-1>", lambda event, gpu_id=gpu_id: self.change_power_limit(gpu_id))
-                self.gpu_stat_labels.append(gpu_stat_labels_row)
-        else:
-            pass
-        #self.expand_label.bind("<Button-1>", lambda event: self.toggle_expand())
+        self.gpu_gui_labels = []
+
+        gpu_gui_label = ttk.Label(self.GPU_frame, text=f"All GPUs", foreground="white", background="black")
+        gpu_gui_label.grid(row=0, column=0, sticky='ew')
+        self.gpu_gui_labels.append(gpu_gui_label)
+        for row, stat_label in enumerate(self.stat_names, start=1):
+            gpu_gui_label = ttk.Label(self.root, text=stat_label, foreground="white", background="black")
+            gpu_gui_label.grid(row=row, column=0, sticky='ew')
+            self.gpu_gui_labels.append(gpu_gui_label)
+            gpu_stat_labels_row = []
+            gpu_id = 'all'
+            label = ttk.Label(self.GPU_frame, text="-", foreground="white", background="black")
+            label.grid(row=row, column=0, sticky='ew')
+            self.GPU_frame.rowconfigure(row, weight=1)
+            self.GPU_frame.columnconfigure(0, weight=1)
+            gpu_stat_labels_row.append(label)
+            self.gpu_stat_labels.append(gpu_stat_labels_row)
+    def create_banner_list(self):
+        self.stat_names = [item['name'] for item in self.display_modes["banner"].values() if item['show']]
+        self.stats_labels = [key for key, value in self.display_modes["banner"].items() if value['show']]
+
+        self.GPU_frame = tk.Frame(self.root, bg='black')
+        self.GPU_frame.grid(row=0, column=1, sticky='nsew')
+
+        self.gpu_stat_labels = []
+        self.gpu_gui_labels = []
+        gpu_gui_label = ttk.Label(self.GPU_frame, text=f"All", foreground="white", background="black")
+        gpu_gui_label.grid(row=0, column=0, sticky='ew')
+        self.gpu_gui_labels.append(gpu_gui_label)
+
+        for col, stat_label in enumerate(self.stat_names, start=0):
+            gpu_gui_label = ttk.Label(self.GPU_frame, text=stat_label, foreground="white", background="black")
+            gpu_gui_label.grid(row=0, column=col*2, sticky='ew')
+            
+            gpu_gui_label.grid_configure(sticky='nsew', padx=1, pady=1)
+            gpu_gui_label.configure(borderwidth=2, relief="groove", background="#333333")
+            
+            gpu_stat_labels_col = []
+            gpu_id = 'all'
+            label = ttk.Label(self.GPU_frame, text="-", foreground="white", background="black")
+            label.grid(row=0, column=(col*2)+1, sticky='ew')
+            self.GPU_frame.rowconfigure(0, weight=1)
+            self.GPU_frame.columnconfigure(col, weight=1)
+            gpu_stat_labels_col.append(label)
+            self.gpu_stat_labels.append(gpu_stat_labels_col)
     def toggle_exit(self):
         self.root.quit()
     def toggle_expand(self):
-        if self.show_all_gpu == "<":
+        self.gui_displayed = False
+        if self.config['display_mode'] == "default":
+            self.config['display_mode'] = "summary"
             self.show_all_gpu = ">"
-        else:
+        elif self.config['display_mode'] == "summary":
+            self.config['display_mode'] = "banner"
+            self.show_all_gpu = "^"
+        elif self.config['display_mode'] == "banner":
+            self.config['display_mode'] = "default"
             self.show_all_gpu = "<"
+        else:
+            self.config['display_mode'] = "default"
+            self.show_all_gpu = "<"
+        self.GPU_frame.destroy()
+        for widget in self.gpu_gui_labels:
+            widget.destroy()
+        self.expand_label.configure(text=f"{self.show_all_gpu}")
+        self.create_gpu_labels()
+        self.update_info()
+        self.set_position(self.get_monitor(), self.position)
     def update_info(self):
         self.updating = True
         # Update GPU stats
-        total_gpus = range(self.gpu_monitor.total_gpus)
-        self.gpu_monitor.update_gpu_stats()
-        for gpu_id in total_gpus:
-            gpu_info = self.gpu_monitor.gpu[gpu_id]
-            self.gpu_stat_labels[0][gpu_id].configure(text=f"{gpu_info['percent_usage']}")
-            self.gpu_stat_labels[1][gpu_id].configure(text=f"{gpu_info['temperature']}")
-            self.gpu_stat_labels[2][gpu_id].configure(text=f"{gpu_info['power_usage']}")
-            self.gpu_stat_labels[3][gpu_id].configure(text=f"{gpu_info['max_power']}")
-            self.gpu_stat_labels[4][gpu_id].configure(text=f"{gpu_info['vram_used']}")
-            self.gpu_stat_labels[5][gpu_id].configure(text=f"{gpu_info['vram_max']}")
+        if self.config['display_mode'] == 'default':
+            self.update_default_layout()
+        elif self.config['display_mode'] == 'summary':
+            self.update_summary_layout()
+        elif self.config['display_mode'] == 'banner':
+            self.update_banner_layout()
+        
         try:
             # Schedule the update_info function to run again after 2000 milliseconds (2 seconds)
             self.root.after(self.refresh_time, self.update_info)
         except tk.TclError as e:
             self.updating = False
+    def update_default_layout(self):
+        total_gpus = range(self.gpu_monitor.total_gpus)
+        self.gpu_monitor.update_gpu_stats()
+        if self.gui_displayed:
+            for gpu_id in total_gpus:
+                gpu_info = self.gpu_monitor.gpu[gpu_id]
+                for i, stat in enumerate(self.stats_labels):
+                    self.gpu_stat_labels[i][gpu_id].configure(text=f"{gpu_info[stat]}")
+    def update_summary_layout(self):
+        self.gpu_monitor.update_gpu_stats()
+        gpu_info = self.gpu_monitor.gpu_all
+        if self.gui_displayed:
+            for i, key in enumerate(self.stats_labels):
+                self.gpu_stat_labels[i][0].configure(text=f"{gpu_info[key]}")
+    def update_banner_layout(self):
+        self.gpu_monitor.update_gpu_stats()
+        gpu_info = self.gpu_monitor.gpu_all
+        if self.gui_displayed:
+            for i, key in enumerate(self.stats_labels):
+                self.gpu_stat_labels[i][0].configure(text=f"{gpu_info[key]}")
     def change_power_limit(self, gpu_id=0):
         def validate_input(new_text):
             if not new_text:
@@ -110,13 +224,10 @@ class SKI_GPU_GUI:
             else:
                 sudo_password = self.config['sudo_password']
             self.gpu_monitor.set_gpu_power(gpu_id, int(new_limit), sudo_password)
-        else:
-            print("Invalid input or input cancelled.")
-            pass
     def toggle_position(self):
         monitor = self.get_monitor()
         if monitor:
-            self.set_position(monitor)
+            self.change_position(monitor)
     def get_monitor(self, monitor_id=-1):
         monitor = False
         try:
@@ -137,27 +248,43 @@ class SKI_GPU_GUI:
         except ValueError:
             return False
         return monitor
-    def set_position(self, monitor):
-        monitor_width, monitor_height = monitor.width, monitor.height
-
-        # Get screen dimensions
-        screen_width, screen_height, screen_x, screen_y = monitor.x, monitor.y, monitor.width, monitor.height
-
-        # Define positions for the window
-        positions = {
-            "0_top_left": {"x_pos": 0, "y_pos": 0},
-            "0_top_right": {"x_pos": screen_x + screen_width - self.root.winfo_width(), "y_pos": 0},
-            "0_bottom_left": {"x_pos": 0, "y_pos": screen_y + screen_height - self.root.winfo_height()},
-            "0_bottom_right": {"x_pos": screen_x + screen_width - self.root.winfo_width(), "y_pos": screen_y + screen_height - self.root.winfo_height()},
-        }
-
+    def change_position(self, monitor):
         # Determine the next position
-        positions_list = list(positions.keys())
+        positions_list = ["top left", "top center", "top right", "bottom left", "bottom center", "bottom right", "v_center left", "v_center right", "v_center center"]
         if not hasattr(self, 'position') or self.position not in positions_list:
             self.position = positions_list[1]
         else:
             self.position = positions_list[(positions_list.index(self.position) + 1) % len(positions_list)]
 
+        self.set_position(monitor, self.position)
+    def set_position(self, monitor, position):
+        monitor_width, monitor_height = monitor.width, monitor.height
+
+        # Get screen dimensions
+        screen_width, screen_height, screen_x, screen_y = monitor.x, monitor.y, monitor.width, monitor.height
+
+        left = 0
+        right = screen_x + screen_width - self.root.winfo_width()
+        top = 0
+        bottom = screen_y + screen_height - self.root.winfo_height()
+        center = int((screen_x + screen_width - self.root.winfo_width())/2)
+        v_center = int((screen_y + screen_height - self.root.winfo_height())/2)
+
+        # Define positions for the window
+        positions = {
+            "top left": {"x_pos": left, "y_pos": top},
+            "top center": {"x_pos": center, "y_pos": top},
+            "top right": {"x_pos": right, "y_pos": top},
+            "bottom left": {"x_pos": left, "y_pos": bottom},
+            "bottom center": {"x_pos": center, "y_pos": bottom},
+            "bottom right": {"x_pos": right, "y_pos": bottom},
+            "v_center left": {"x_pos": left, "y_pos": v_center},
+            "v_center right": {"x_pos": right, "y_pos": v_center},
+            "v_center center": {"x_pos": center, "y_pos": v_center}
+        }
+        positions_list = list(positions.keys())
+        if not hasattr(self, 'position') or self.position not in positions_list:
+            self.position = positions_list[0]
         # Get the new window position
         new_x_pos = positions[self.position]['x_pos']
         new_y_pos = positions[self.position]['y_pos']
