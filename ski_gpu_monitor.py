@@ -4,10 +4,9 @@ script_directory = os.path.dirname(os.path.abspath(__file__))
 config_file_path = os.path.join(script_directory, "config.json")
 
 class Ski_GPU_Monitor:
-    #import subprocess, json, os, time
     def __init__(self, simulate=0):
-
-        self.version = "1.0.4s"
+        self.version = "1.0.5"
+        self.lastupdate = "2024-06-02"
         self.config = self.load_config(simulate)
         self.min_wait = self.config['min_wait'] #second
 

@@ -9,7 +9,8 @@ config_file_path = os.path.join(script_directory, "config.json")
 
 class SKI_GPU_GUI:
     def __init__(self, root):
-        self.version = "1.1.0a"
+        self.version = "1.1.1"
+        self.lastupdate = "2024-06-02"
         self.gpu_monitor = Ski_GPU_Monitor()
         self.gpu_monitor.update_gpu_stats()
 
@@ -58,10 +59,14 @@ class SKI_GPU_GUI:
     def create_gpu_labels(self):
         if self.config['display_mode'] == 'default':
             self.create_default_list()
+            self.show_all_gpu = "<"
         elif self.config['display_mode'] == 'summary':
             self.create_summary_list()
+            self.show_all_gpu = ">"
         elif self.config['display_mode'] == 'banner':
             self.create_banner_list()
+            self.show_all_gpu = "^"
+        self.expand_label.configure(text=f"{self.show_all_gpu}")
         self.buttons_frame.update_idletasks()
         self.expand_label.bind("<Button-1>", lambda event: self.toggle_expand())
         self.gui_displayed = True
@@ -94,7 +99,8 @@ class SKI_GPU_GUI:
                 self.GPU_frame.rowconfigure(row, weight=1)
                 self.GPU_frame.columnconfigure(gpu_id, weight=1)
                 gpu_stat_labels_row.append(label)
-                if stat_label == "MaxPwr(W)":
+                power_name = self.config['display_modes']['default']['max_power']['name']
+                if stat_label == power_name:
                     label.bind("<Button-1>", lambda event, gpu_id=gpu_id: self.change_power_limit(gpu_id))
             self.gpu_stat_labels.append(gpu_stat_labels_row)
     def create_summary_list(self):
@@ -120,6 +126,9 @@ class SKI_GPU_GUI:
             self.GPU_frame.rowconfigure(row, weight=1)
             self.GPU_frame.columnconfigure(0, weight=1)
             gpu_stat_labels_row.append(label)
+            power_name = self.config['display_modes']['summary']['max_power']['name']
+            if stat_label == power_name and self.gpu_monitor.total_gpus == 1:
+                label.bind("<Button-1>", lambda event, gpu_id=gpu_id: self.change_power_limit(gpu_id))
             self.gpu_stat_labels.append(gpu_stat_labels_row)
     def create_banner_list(self):
         self.stat_names = [item['name'] for item in self.display_modes["banner"].values() if item['show']]
@@ -139,7 +148,7 @@ class SKI_GPU_GUI:
             gpu_gui_label.grid(row=0, column=col*2, sticky='ew')
             
             gpu_gui_label.grid_configure(sticky='nsew', padx=1, pady=1)
-            gpu_gui_label.configure(borderwidth=2, relief="groove", background="#333333")
+            gpu_gui_label.configure(borderwidth=2, relief="groove", background="#222222")
             
             gpu_stat_labels_col = []
             gpu_id = 'all'
@@ -148,6 +157,10 @@ class SKI_GPU_GUI:
             self.GPU_frame.rowconfigure(0, weight=1)
             self.GPU_frame.columnconfigure(col, weight=1)
             gpu_stat_labels_col.append(label)
+            power_name = self.config['display_modes']['banner']['max_power']['name']
+            powerusage_name = self.config['display_modes']['banner']['power_usage']['name']
+            if (stat_label == power_name or stat_label == powerusage_name) and self.gpu_monitor.total_gpus == 1:
+                label.bind("<Button-1>", lambda event, gpu_id="0": self.change_power_limit("0"))
             self.gpu_stat_labels.append(gpu_stat_labels_col)
     def toggle_exit(self):
         self.root.quit()
